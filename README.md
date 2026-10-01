@@ -1,44 +1,103 @@
-# Frontend: Enterprise Policy & Claims Assistant
+# Enterprise Policy & Claims Assistant — Frontend
 
-Dieses Repository enthält das Frontend für den **Enterprise Policy & Claims Assistant**, entwickelt mit **Next.js (App Router)** und **Tailwind CSS**.
+Next.js App Router, React, TypeScript und Tailwind CSS. Der Arbeitsbereich verbindet Schadensdaten, Chat mit Quellenverweisen, PDF-Upload und ML-Risikobewertung in einer responsiven Oberfläche.
 
-Es richtet sich an Versicherungssachbearbeiter und demonstriert, wie komplexe KI-Prozesse (RAG & Machine Learning) in einer benutzerfreundlichen, performanten UI zugänglich gemacht werden. Die Applikation visualisiert Datenflüsse und schafft durch transparente Quellenangaben Vertrauen in die KI-generierten Antworten.
+## Starten
 
----
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
 
-## Fokus der Entwicklung & Bewertungskriterien
+Frontend: `http://localhost:3000`. `NEXT_PUBLIC_API_BASE_URL` legt die vom Browser erreichbare Backend-Adresse fest (Standard: `http://localhost:8000`, ohne `/api`). Sie wird beim Build eingebettet; nach Änderungen Entwicklungsserver neu starten bzw. neu bauen. Keine API-Schlüssel in öffentliche Umgebungsvariablen schreiben.
 
-Bei der Überprüfung und Bewertung dieses Frontends liegt das Hauptaugenmerk auf moderner React-Architektur, Performance und sauberem Styling. Konkret wird auf Folgendes geachtet:
+**Integrationsstand:** Die Frontend-Funktionen der Phasen 1–3 sind implementiert. Im benachbarten Backend sind `app/main.py` und die REST-Endpunkte noch nicht vorhanden. Bis sie den folgenden Vertrag implementieren, zeigt die Oberfläche bei Anfragen einen Verbindungsfehler. Die automatisierten Tests verwenden simulierte HTTP-Antworten; ein Live-Test mit FastAPI, Index und LLM steht noch aus.
 
-### 1. Next.js Architektur & Rendering
+Das Backend muss die Frontend-Origin via CORS zulassen, einschließlich `POST`, `OPTIONS` und `Content-Type`. Für Produktion eine passende HTTPS-Backend-Adresse konfigurieren. Es gibt keinen automatischen Wechsel auf Demodaten.
 
-- **App Router (`app/` Directory):** Saubere Strukturierung der Routen und Nutzung der modernen Next.js Architektur.
-- **Server vs. Client Components:** Gezielter Einsatz von React Server Components (RSC) für schnelles initiales Laden und SEO, während Interaktivität (wie das Chat-Interface) gezielt in Client Components (`"use client"`) ausgelagert wird.
-- **Loading & Error UI:** Nutzung von `loading.tsx` für Skeleton-Screens während KI-Berechnungen und `error.tsx` für das Abfangen von API-Fehlern.
+## Bedienung
 
-### 2. Styling mit Tailwind CSS
+- Schadensdaten bearbeiten und mit „Daten übernehmen“ für die nächste Frage speichern. Die Anfangswerte sind Beispielangaben und müssen an den tatsächlichen Schaden angepasst werden.
+- PDFs per Dateiauswahl oder Drag-and-drop hochladen. Eine Datei pro Upload, maximal 20 MiB, nicht leer. Die serverseitige Prüfung des tatsächlichen Dateiformats bleibt erforderlich.
+- Ein Dokument erscheint erst nach erfolgreichem Upload und abgeschlossener Indexierung als verfügbar. Seine ID wird mit nachfolgenden Fragen gesendet.
+- Fragen per Enter oder Schaltfläche senden; Shift+Enter erzeugt einen Zeilenumbruch. Während Uploads und Chat-Anfragen werden konkurrierende Aktionen gesperrt.
+- Quellenverweise öffnen den gelieferten Dokumentauszug. Ein optionales ML-Ergebnis ersetzt den leeren Risikostatus; geänderte Schadensdaten oder neue Dokumente löschen die bisherige Bewertung.
+- Technische Fehler lassen sich erneut versuchen. Chat-Wiederholungen verwenden dieselbe Anfrage und erzeugen keine zweite Nutzernachricht. Jede HTTP-Anfrage hat ein Zeitlimit von 90 Sekunden; beim Verlassen wird sie abgebrochen. Ein Abbruch garantiert keinen Abbruch der serverseitigen Verarbeitung.
+- Zustand und Dokument-IDs bleiben nur im Arbeitsspeicher dieser Sitzung. Das Neuladen löscht den lokalen Verlauf, aber keine Dateien im Backend.
 
-- **Utility-First Approach:** Konsequente Nutzung von Tailwind-Klassen anstelle von externen CSS-Dateien oder Inline-Styles.
-- **Design System:** Sinnvolle Erweiterung der `tailwind.config.ts` (z.B. für eigene Markenfarben, Risk-Badges).
-- **Responsiveness:** Konsequenter Mobile-First-Ansatz unter Nutzung der Tailwind-Breakpoints (`md:`, `lg:`, `xl:`), sodass das Dashboard auf allen Geräten funktioniert.
+## HTTP-Vertrag für die REST-Schicht
 
-### 3. State Management & API-Integration
+Der typisierte Client steht in `src/lib/api.ts`, die Datentypen in `src/lib/types.ts`. JSON-Antworten werden vor der Darstellung validiert. Fehler liefern einen nicht erfolgreichen HTTP-Status, optional mit FastAPI-`detail`; interne Fehlerdetails werden nicht ungefiltert angezeigt.
 
-- **Datenfluss:** Effizientes Fetching der FastAPI-Backend-Daten. Verwaltung des asynchronen Chat-Verlaufs und der ML-Scores ohne unnötige Re-Renders.
-- **Streaming-Support:** Die UI ist darauf ausgelegt, gestreamte LLM-Antworten (Token für Token) flüssig darzustellen.
-- **Separation of Concerns:** Auslagerung komplexer Logik (z.B. API-Calls an das Python-Backend) in eigene Custom Hooks oder Service-Dateien.
+### `POST /api/chat`
 
-### 4. UI/UX & Human-in-the-Loop
+Request (`application/json`):
 
-- **Source Citation Panel:** Zitate aus den PDFs werden nicht nur als Text dargestellt, sondern interaktiv hervorgehoben (Transparenz für den Sachbearbeiter).
-- **Visuelles Feedback:** Klare farbliche Signale (Tailwind-Farben) für den ML-Risk-Score (Grün = Auto-Freigabe, Rot = Manuelle Prüfung).
-- **Accessibility (a11y):** Korrekte Nutzung von semantischem HTML und ARIA-Labels für Screenreader.
+```json
+{
+  "message": "Ist der Wasserschaden gedeckt?",
+  "claim": {
+    "customer_age": 38,
+    "claim_amount": 2450,
+    "claim_type": "water",
+    "policy_months": 36,
+    "previous_claims": 0,
+    "description": "Wasserleitung undicht."
+  },
+  "history": [],
+  "document_ids": ["doc-1"]
+}
+```
 
----
+`history` enthält vorherige `{ "role": "user" | "assistant", "content": "…" }`-Nachrichten, ohne Begrüßung und ohne die aktuelle Frage. `document_ids: []` bedeutet Suche im bestehenden Dokumentbestand; bei IDs muss das Backend die Suche auf diese Dokumente begrenzen. Schadenarten: `water`, `theft`, `glass`, `liability`.
 
-## Lokales Setup
+Response:
 
-1. **Repository klonen und in den Frontend-Ordner wechseln:**
-   ```bash
-   cd frontend
-   ```
+```json
+{
+  "status": "answered",
+  "answer": "Die Bedingungen beschreiben Leitungswasserschäden.",
+  "sources": [{
+    "id": "source-1",
+    "document_name": "AVB.pdf",
+    "page": 12,
+    "section": "Leitungswasserschäden",
+    "text": "Versichert sind Schäden durch Leitungswasser.",
+    "quote": "Schäden durch Leitungswasser"
+  }],
+  "risk": { "level": "low", "score": 12, "explanation": "Unauffälliges Modellergebnis." }
+}
+```
+
+- `status`: `answered` (Standard, falls ausgelassen), `insufficient_context` oder `manual_review`. Die letzten beiden zeigen feste, klare Hinweise anstelle einer unbelegten Antwort; Quellen werden dabei nicht dargestellt. Fehlende Quellen allein werden nicht als Guardrail-Signal interpretiert.
+- `answer`: Text, bei `answered` nicht leer. `sources`: Array, ggf. leer. Seiten sind 1-basiert; Quellen-IDs müssen innerhalb einer Antwort eindeutig sein. `quote` und `section` dürfen leer sein. Nur tatsächlich im Auszug vorkommende Zitate werden hervorgehoben.
+- `risk`: optional, bei fehlender Bewertung weglassen. `level`: `low`, `medium`, `high`; `score`: Zahl von 0 bis 100. Risikogrenzen bestimmt das Backend. Das Frontend trifft keine Leistungsentscheidung.
+
+Der vorhandene lokale Python-Agent ist **kein HTTP-Endpunkt** und hat einen anderen Vertrag (`query`, reduzierte `claim`-Felder; Ergebnis mit `final_answer`, `ml_score` und eigenen Quellenfeldern). Die zukünftige REST-Schicht muss diese Felder explizit abbilden, Schadenarten auf die Modellkategorien abstimmen, Verlauf und Dokumentfilter unterstützen, Scores auf 0–100 umrechnen und Agent-Status `error` als HTTP-Fehler ausgeben. Zusätzliche Frontend-Schadensfelder dürfen nicht ungeprüft an das restriktive `AgentRequest` weitergereicht werden.
+
+### `POST /api/upload`
+
+Multipart-Formular mit genau einem Feld `file` (PDF). Erfolgreiche Antwort **nach abgeschlossener Indexierung**:
+
+```json
+{ "document_id": "doc-1", "filename": "Police.pdf" }
+```
+
+Die ID bezeichnet das für die Suche verfügbare Dokument. Wiederholte Uploads sollte das Backend deduplizieren. Empfohlene Fehlerstatus: `413` für Größenlimit, `415` für Dateiformat, `422` für ungültige Inhalte, `429` für Ratenlimit, `5xx` für Verarbeitungsausfälle. Der Client setzt den Multipart-Boundary automatisch.
+
+## Prüfungen
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+npx playwright install chromium
+npm test -- --workers=2
+```
+
+Alternativ mit installiertem Chrome: `PLAYWRIGHT_CHANNEL=chrome npm test -- --workers=2`.
+
+Playwright startet den Entwicklungsserver auf `127.0.0.1:3100`. Die Suite deckt Desktop und Mobilansicht ab: Formularvalidierung, Payload und Verlauf, Quellen, Risikostatus, Tastaturbedienung, Ladezustände, Wiederholung nach Netzwerk-/HTTP-/Formatfehlern, Guardrails, PDF-Auswahl und Drag-and-drop, Größenprüfung sowie Dokument-IDs. Client-Tests prüfen außerdem Multipart, Abbruchweiterleitung und Timeout.
+
+Das Chat-Protokoll liefert vollständige JSON-Antworten, kein Token-Streaming. Lade- und Fehlerzustände liegen direkt bei den asynchronen Client-Aktionen; Routen-`loading.tsx`/`error.tsx` würden diese Ereignishandler nicht abdecken.

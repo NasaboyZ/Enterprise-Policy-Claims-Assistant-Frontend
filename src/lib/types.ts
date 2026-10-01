@@ -31,19 +31,24 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   sources: SourceCitation[];
+  status?: ChatStatus;
 }
 
-// Provisional frontend contracts; align with FastAPI's OpenAPI schema in phase 3.
+// HTTP contract for the pending FastAPI REST layer; see README.md.
+export type ChatStatus = "answered" | "insufficient_context" | "manual_review";
+
 export interface ChatRequest {
   message: string;
   claim: ClaimInput;
   history: Pick<ChatMessage, "role" | "content">[];
+  document_ids: string[];
 }
 
 export interface ChatResponse {
   answer: string;
   sources: SourceCitation[];
   risk?: RiskAssessment;
+  status?: ChatStatus;
 }
 
 export interface UploadResponse {
