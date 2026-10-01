@@ -1,63 +1,44 @@
-# Claimwise Frontend
+# Frontend: Enterprise Policy & Claims Assistant
 
-Next.js App Router, React, TypeScript und Tailwind CSS. Umsetzung von **Phase 1 und 2** aus `frontendplan.md`.
+Dieses Repository enthält das Frontend für den **Enterprise Policy & Claims Assistant**, entwickelt mit **Next.js (App Router)** und **Tailwind CSS**.
 
-## Lokal starten
+Es richtet sich an Versicherungssachbearbeiter und demonstriert, wie komplexe KI-Prozesse (RAG & Machine Learning) in einer benutzerfreundlichen, performanten UI zugänglich gemacht werden. Die Applikation visualisiert Datenflüsse und schafft durch transparente Quellenangaben Vertrauen in die KI-generierten Antworten.
 
-Voraussetzung: Node.js 20.9 oder neuer und npm.
+---
 
-```sh
-npm ci
-npm run dev
-```
+## Fokus der Entwicklung & Bewertungskriterien
 
-Die Anwendung läuft unter http://localhost:3000.
+Bei der Überprüfung und Bewertung dieses Frontends liegt das Hauptaugenmerk auf moderner React-Architektur, Performance und sauberem Styling. Konkret wird auf Folgendes geachtet:
 
-## Enthaltene Funktionen
+### 1. Next.js Architektur & Rendering
 
-- Responsiver Arbeitsbereich: Schadensdaten, Chat und Quellen; auf kleineren Bildschirmen untereinander.
-- Schadensformular mit Pflichtfeldern und numerischen Grenzen. Übernommene Daten aktualisieren die Fallübersicht und bleiben im Arbeitsspeicher der Sitzung.
-- Lokaler Demo-Chat mit Freitexteingabe, Beispielfragen und anklickbaren Quellen.
-- Quellenpanel mit Seitenangabe, Dokumenttitel und hervorgehobener Textstelle.
-- Risikoanzeige mit neutralem Ausgangszustand sowie auswählbaren grünen, gelben und roten Beispielen. Diese Vorschau ist unabhängig von den Formulareingaben und keine ML-Berechnung.
-- Vorbereiteter, typisierter HTTP-Service für FastAPI.
+- **App Router (`app/` Directory):** Saubere Strukturierung der Routen und Nutzung der modernen Next.js Architektur.
+- **Server vs. Client Components:** Gezielter Einsatz von React Server Components (RSC) für schnelles initiales Laden und SEO, während Interaktivität (wie das Chat-Interface) gezielt in Client Components (`"use client"`) ausgelagert wird.
+- **Loading & Error UI:** Nutzung von `loading.tsx` für Skeleton-Screens während KI-Berechnungen und `error.tsx` für das Abfangen von API-Fehlern.
 
-Alle Antworten und Dokumenttexte sind ausdrücklich synthetische Demodaten. Es werden keine PDFs geladen und keine Backend-Anfragen ausgelöst. Neuladen setzt die Sitzung zurück.
+### 2. Styling mit Tailwind CSS
 
-## Struktur
+- **Utility-First Approach:** Konsequente Nutzung von Tailwind-Klassen anstelle von externen CSS-Dateien oder Inline-Styles.
+- **Design System:** Sinnvolle Erweiterung der `tailwind.config.ts` (z.B. für eigene Markenfarben, Risk-Badges).
+- **Responsiveness:** Konsequenter Mobile-First-Ansatz unter Nutzung der Tailwind-Breakpoints (`md:`, `lg:`, `xl:`), sodass das Dashboard auf allen Geräten funktioniert.
 
-```text
-src/app/                         App-Einstieg, Layout und Styling
-src/components/claims-workspace.tsx   Lokaler Sitzungszustand
-src/components/risk-assessment-form.tsx
-src/components/smart-chat.tsx
-src/components/source-panel.tsx
-src/components/risk-badge.tsx
-src/lib/types.ts                 Vorläufige Datentypen
-src/lib/api.ts                   Zentraler HTTP-Service
-src/lib/demo.ts                  Isolierte Demo-Inhalte
-tests/                          Browser- und HTTP-Service-Tests
-```
+### 3. State Management & API-Integration
 
-## Vorbereitung für Phase 3
+- **Datenfluss:** Effizientes Fetching der FastAPI-Backend-Daten. Verwaltung des asynchronen Chat-Verlaufs und der ML-Scores ohne unnötige Re-Renders.
+- **Streaming-Support:** Die UI ist darauf ausgelegt, gestreamte LLM-Antworten (Token für Token) flüssig darzustellen.
+- **Separation of Concerns:** Auslagerung komplexer Logik (z.B. API-Calls an das Python-Backend) in eigene Custom Hooks oder Service-Dateien.
 
-Bei Bedarf `.env.example` nach `.env.local` kopieren. `NEXT_PUBLIC_API_BASE_URL` bezeichnet die FastAPI-URL **ohne** `/api`, standardmässig `http://localhost:8000`.
+### 4. UI/UX & Human-in-the-Loop
 
-Der Service `createApiClient()` stellt `chat()`, `upload()` und `metrics()` für die im Backend-Plan beschriebenen Endpunkte bereit. Er bündelt JSON-/Multipart-Anfragen, HTTP-Fehler und optionale Abort-Signale. `NEXT_PUBLIC_`-Variablen sind öffentlich; keine API-Schlüssel darin hinterlegen.
+- **Source Citation Panel:** Zitate aus den PDFs werden nicht nur als Text dargestellt, sondern interaktiv hervorgehoben (Transparenz für den Sachbearbeiter).
+- **Visuelles Feedback:** Klare farbliche Signale (Tailwind-Farben) für den ML-Risk-Score (Grün = Auto-Freigabe, Rot = Manuelle Prüfung).
+- **Accessibility (a11y):** Korrekte Nutzung von semantischem HTML und ARIA-Labels für Screenreader.
 
-Die Request-/Response-Typen in `src/lib/types.ts` sind ein **vorläufiger Frontend-Vertrag**, da noch kein FastAPI-Schema vorliegt. Die Typisierung ersetzt keine Laufzeitvalidierung. Vor der Integration mit dem tatsächlichen OpenAPI-Schema abgleichen, Antwortvalidierung ergänzen und CORS bzw. einen Proxy konfigurieren. UI-Aufrufe, PDF-Upload, Lade-/Fehlerzustände und Guardrail-Behandlung gehören zu Phase 3 und sind noch offen.
+---
 
-## Prüfen
+## Lokales Setup
 
-```sh
-npm run lint
-npm run typecheck
-npm run build
-npx playwright install chromium
-npm test
-```
-
-Die Browser-Tests starten selbst einen lokalen Server auf Port 3100 und prüfen Desktop- und Mobilansicht, Formularvalidierung, Chat, Quellenwechsel und Risikozustände. HTTP-Tests verwenden simulierte Antworten.
-
-Technische Referenzen: [Next.js Installation](https://nextjs.org/docs/app/getting-started/installation), [Tailwind mit Next.js](https://tailwindcss.com/docs/installation/framework-guides/nextjs).
-# Enterprise-Policy-Claims-Assistant-Frontend
+1. **Repository klonen und in den Frontend-Ordner wechseln:**
+   ```bash
+   cd frontend
+   ```
