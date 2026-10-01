@@ -1,8 +1,10 @@
-# Enterprise Policy & Claims Assistant — Frontend
+# Claimwise — Frontend
 
-Next.js App Router, React, TypeScript und Tailwind CSS. Der Arbeitsbereich verbindet Schadensdaten, Chat mit Quellenverweisen, PDF-Upload und ML-Risikobewertung in einer responsiven Oberfläche.
+Next.js, React und TypeScript. Chat, PDF-Upload, Quellenansicht und ML-Modellwert sind an das FastAPI-Backend im Verzeichnis `../backend` angebunden.
 
 ## Starten
+
+Backend nach `../backend/README.md` starten, anschließend:
 
 ```bash
 npm install
@@ -10,81 +12,25 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Frontend: `http://localhost:3000`. `NEXT_PUBLIC_API_BASE_URL` legt die vom Browser erreichbare Backend-Adresse fest (Standard: `http://localhost:8000`, ohne `/api`). Sie wird beim Build eingebettet; nach Änderungen Entwicklungsserver neu starten bzw. neu bauen. Keine API-Schlüssel in öffentliche Umgebungsvariablen schreiben.
+Frontend: **http://127.0.0.1:3000**. Die serverseitige Variable `API_BASE_URL` legt die FastAPI-Adresse fest (Standard `http://127.0.0.1:8000`, ohne `/api`). Nach Änderungen Next.js neu starten bzw. neu bauen. Der Browser verwendet relative `/api`-Adressen; Next.js leitet sie an FastAPI weiter. Dadurch ist keine CORS-Freigabe nötig und Zugriffe über eine Netzwerkadresse verwenden ebenfalls das Backend des Servers. `NEXT_PUBLIC_API_BASE_URL` wird nicht mehr verwendet. API-Schlüssel bleiben ausschließlich im Backend.
 
-**Integrationsstand:** Die Frontend-Funktionen der Phasen 1–3 sind implementiert. Im benachbarten Backend sind `app/main.py` und die REST-Endpunkte noch nicht vorhanden. Bis sie den folgenden Vertrag implementieren, zeigt die Oberfläche bei Anfragen einen Verbindungsfehler. Die automatisierten Tests verwenden simulierte HTTP-Antworten; ein Live-Test mit FastAPI, Index und LLM steht noch aus.
+## Bedienung und aktueller Funktionsumfang
 
-Das Backend muss die Frontend-Origin via CORS zulassen, einschließlich `POST`, `OPTIONS` und `Content-Type`. Für Produktion eine passende HTTPS-Backend-Adresse konfigurieren. Es gibt keinen automatischen Wechsel auf Demodaten.
+- Schadensdaten mit „Daten übernehmen“ speichern. Alter, Betrag und Schadenart werden für den ML-Check gesendet. Vertragsdauer, Vorschäden und Beschreibung sind derzeit nur lokale Eingaben; das Backend verarbeitet diese Felder noch nicht.
+- Fragen per Enter oder Senden-Schaltfläche abschicken; Shift+Enter erzeugt einen Zeilenumbruch. Nachrichten bleiben im sichtbaren Sitzungsverlauf. Jede Frage wird eigenständig verarbeitet: Das Backend unterstützt noch keinen Gesprächsverlauf und keine Beschränkung auf einzelne hochgeladene Dokumente.
+- Eine PDF pro Upload, maximal 10 MiB und 100 Seiten. Verschlüsselte, beschädigte und textlose PDFs werden abgewiesen. Dokumente erscheinen erst nach erfolgreicher Indexierung und stehen dann im gesamten Backend-Dokumentbestand zur Verfügung. Identische Dateien werden erkannt.
+- Quellen öffnen den tatsächlichen Dokumentauszug mit Dateiname und Seite. Der ML-Score wird von 0–1 auf 0–100 umgerechnet; `manual_review` kommt vom Backend. Es gibt keine automatische Leistungsentscheidung.
+- Fehlgeschlagene Anfragen lassen sich wiederholen, ohne Nutzernachrichten zu duplizieren. Bekannte Fehlercodes werden verständlich angezeigt; interne Fehlerdetails werden nicht ungefiltert ausgegeben. Anfragen haben ein Zeitlimit von 90 Sekunden.
+- Neuladen löscht den lokalen Verlauf, jedoch keine Dokumente im Backend.
 
-## Bedienung
+## HTTP-Anbindung
 
-- Schadensdaten bearbeiten und mit „Daten übernehmen“ für die nächste Frage speichern. Die Anfangswerte sind Beispielangaben und müssen an den tatsächlichen Schaden angepasst werden.
-- PDFs per Dateiauswahl oder Drag-and-drop hochladen. Eine Datei pro Upload, maximal 20 MiB, nicht leer. Die serverseitige Prüfung des tatsächlichen Dateiformats bleibt erforderlich.
-- Ein Dokument erscheint erst nach erfolgreichem Upload und abgeschlossener Indexierung als verfügbar. Seine ID wird mit nachfolgenden Fragen gesendet.
-- Fragen per Enter oder Schaltfläche senden; Shift+Enter erzeugt einen Zeilenumbruch. Während Uploads und Chat-Anfragen werden konkurrierende Aktionen gesperrt.
-- Quellenverweise öffnen den gelieferten Dokumentauszug. Ein optionales ML-Ergebnis ersetzt den leeren Risikostatus; geänderte Schadensdaten oder neue Dokumente löschen die bisherige Bewertung.
-- Technische Fehler lassen sich erneut versuchen. Chat-Wiederholungen verwenden dieselbe Anfrage und erzeugen keine zweite Nutzernachricht. Jede HTTP-Anfrage hat ein Zeitlimit von 90 Sekunden; beim Verlassen wird sie abgebrochen. Ein Abbruch garantiert keinen Abbruch der serverseitigen Verarbeitung.
-- Zustand und Dokument-IDs bleiben nur im Arbeitsspeicher dieser Sitzung. Das Neuladen löscht den lokalen Verlauf, aber keine Dateien im Backend.
+`src/lib/api.ts` übersetzt die Backend-Antworten in die UI-Datentypen:
 
-## HTTP-Vertrag für die REST-Schicht
-
-Der typisierte Client steht in `src/lib/api.ts`, die Datentypen in `src/lib/types.ts`. JSON-Antworten werden vor der Darstellung validiert. Fehler liefern einen nicht erfolgreichen HTTP-Status, optional mit FastAPI-`detail`; interne Fehlerdetails werden nicht ungefiltert angezeigt.
-
-### `POST /api/chat`
-
-Request (`application/json`):
-
-```json
-{
-  "message": "Ist der Wasserschaden gedeckt?",
-  "claim": {
-    "customer_age": 38,
-    "claim_amount": 2450,
-    "claim_type": "water",
-    "policy_months": 36,
-    "previous_claims": 0,
-    "description": "Wasserleitung undicht."
-  },
-  "history": [],
-  "document_ids": ["doc-1"]
-}
-```
-
-`history` enthält vorherige `{ "role": "user" | "assistant", "content": "…" }`-Nachrichten, ohne Begrüßung und ohne die aktuelle Frage. `document_ids: []` bedeutet Suche im bestehenden Dokumentbestand; bei IDs muss das Backend die Suche auf diese Dokumente begrenzen. Schadenarten: `water`, `theft`, `glass`, `liability`.
-
-Response:
-
-```json
-{
-  "status": "answered",
-  "answer": "Die Bedingungen beschreiben Leitungswasserschäden.",
-  "sources": [{
-    "id": "source-1",
-    "document_name": "AVB.pdf",
-    "page": 12,
-    "section": "Leitungswasserschäden",
-    "text": "Versichert sind Schäden durch Leitungswasser.",
-    "quote": "Schäden durch Leitungswasser"
-  }],
-  "risk": { "level": "low", "score": 12, "explanation": "Unauffälliges Modellergebnis." }
-}
-```
-
-- `status`: `answered` (Standard, falls ausgelassen), `insufficient_context` oder `manual_review`. Die letzten beiden zeigen feste, klare Hinweise anstelle einer unbelegten Antwort; Quellen werden dabei nicht dargestellt. Fehlende Quellen allein werden nicht als Guardrail-Signal interpretiert.
-- `answer`: Text, bei `answered` nicht leer. `sources`: Array, ggf. leer. Seiten sind 1-basiert; Quellen-IDs müssen innerhalb einer Antwort eindeutig sein. `quote` und `section` dürfen leer sein. Nur tatsächlich im Auszug vorkommende Zitate werden hervorgehoben.
-- `risk`: optional, bei fehlender Bewertung weglassen. `level`: `low`, `medium`, `high`; `score`: Zahl von 0 bis 100. Risikogrenzen bestimmt das Backend. Das Frontend trifft keine Leistungsentscheidung.
-
-Der vorhandene lokale Python-Agent ist **kein HTTP-Endpunkt** und hat einen anderen Vertrag (`query`, reduzierte `claim`-Felder; Ergebnis mit `final_answer`, `ml_score` und eigenen Quellenfeldern). Die zukünftige REST-Schicht muss diese Felder explizit abbilden, Schadenarten auf die Modellkategorien abstimmen, Verlauf und Dokumentfilter unterstützen, Scores auf 0–100 umrechnen und Agent-Status `error` als HTTP-Fehler ausgeben. Zusätzliche Frontend-Schadensfelder dürfen nicht ungeprüft an das restriktive `AgentRequest` weitergereicht werden.
-
-### `POST /api/upload`
-
-Multipart-Formular mit genau einem Feld `file` (PDF). Erfolgreiche Antwort **nach abgeschlossener Indexierung**:
-
-```json
-{ "document_id": "doc-1", "filename": "Police.pdf" }
-```
-
-Die ID bezeichnet das für die Suche verfügbare Dokument. Wiederholte Uploads sollte das Backend deduplizieren. Empfohlene Fehlerstatus: `413` für Größenlimit, `415` für Dateiformat, `422` für ungültige Inhalte, `429` für Ratenlimit, `5xx` für Verarbeitungsausfälle. Der Client setzt den Multipart-Boundary automatisch.
+- `POST /api/chat`: `{ "query": "Welcher Selbstbehalt gilt bei Leitungswasser?", "claim": { "customer_age": 38, "claim_amount": 2450, "claim_type": "water" } }`. Keine zusätzlichen Felder an den restriktiven AgentRequest senden.
+- Chat-Antwort: `status`, `final_answer`, `ml_score`, `sources`, `error_code`. Quellen enthalten `source_id`, `filename`, `page`, `text` sowie Metadaten. Bei `manual_review` und `insufficient_context` erscheinen klare Hinweise.
+- `POST /api/upload`: Multipart mit genau einem `file`. Nach Indexierung liefert FastAPI `status`, `filename`, `sha256`, `chunks`; SHA-256 dient lokal der Deduplizierung.
+- `GET /api/metrics`: unveränderter Evaluationsbericht des Backends, vor der ersten Evaluation HTTP 404.
 
 ## Prüfungen
 
@@ -92,12 +38,7 @@ Die ID bezeichnet das für die Suche verfügbare Dokument. Wiederholte Uploads s
 npm run typecheck
 npm run lint
 npm run build
-npx playwright install chromium
 npm test -- --workers=2
 ```
 
-Alternativ mit installiertem Chrome: `PLAYWRIGHT_CHANNEL=chrome npm test -- --workers=2`.
-
-Playwright startet den Entwicklungsserver auf `127.0.0.1:3100`. Die Suite deckt Desktop und Mobilansicht ab: Formularvalidierung, Payload und Verlauf, Quellen, Risikostatus, Tastaturbedienung, Ladezustände, Wiederholung nach Netzwerk-/HTTP-/Formatfehlern, Guardrails, PDF-Auswahl und Drag-and-drop, Größenprüfung sowie Dokument-IDs. Client-Tests prüfen außerdem Multipart, Abbruchweiterleitung und Timeout.
-
-Das Chat-Protokoll liefert vollständige JSON-Antworten, kein Token-Streaming. Lade- und Fehlerzustände liegen direkt bei den asynchronen Client-Aktionen; Routen-`loading.tsx`/`error.tsx` würden diese Ereignishandler nicht abdecken.
+Playwright verwendet Port 3100 und einen separaten Build-Ordner `.next-test`, damit Tests den laufenden Entwicklungsserver nicht stören. Die Desktop- und Mobiltests prüfen Texteingabe, Versand auch ohne `crypto.randomUUID`, API-Format, Quellen, Fehler/Wiederholung und Uploads mit simulierten FastAPI-Antworten. Sie ersetzen keinen Live-Test des LLM-Anbieters.

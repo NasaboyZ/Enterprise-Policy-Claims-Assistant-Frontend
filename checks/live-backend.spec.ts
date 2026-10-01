@@ -1,0 +1,32 @@
+import { expect, test } from "@playwright/test";
+import path from "node:path";
+
+test("uploads an existing demo PDF and displays a real backend answer", async ({ page }, testInfo) => {
+  test.setTimeout(150_000);
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto("/");
+  const upload = page.waitForResponse(response => response.url().endsWith("/api/upload") && response.request().method() === "POST");
+  await page.getByLabel("PDF auswählen", { exact: true }).setInputFiles(path.resolve(__dirname, "../../backend/data/avb_hausrat.pdf"));
+  const uploadResponse = await upload;
+  expect(uploadResponse.ok(), await uploadResponse.text()).toBe(true);
+  await expect(page.locator(".uploaded-documents")).toContainText(".pdf");
+  await page.getByLabel("Schadenssumme CHF").fill("100");
+  await page.getByRole("button", { name: "Daten übernehmen" }).click();
+  const input = page.getByLabel("Nachricht an den Schadenassistenten");
+  const question = "Welcher Selbstbehalt gilt bei Leitungswasser?";
+  await input.fill(question);
+  await expect(input).toHaveValue(question);
+  const chat = page.waitForResponse(response => response.url().endsWith("/api/chat") && response.request().method() === "POST", { timeout: 100_000 });
+  await input.press("Enter");
+  await expect(page.locator(".message-user")).toContainText(question);
+  const response = await chat;
+  const body = await response.json();
+  await testInfo.attach("backend-result", { body: JSON.stringify(body, null, 2), contentType: "application/json" });
+  expect(response.ok(), JSON.stringify(body)).toBe(true);
+  expect(body.status).toBe("answered");
+  await expect(page.getByRole("log")).toContainText(body.final_answer);
+  await expect(page.locator(".request-error[role=alert]")).toHaveCount(0);
+  expect(errors).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath("live-chat.png"), fullPage: true });
+});

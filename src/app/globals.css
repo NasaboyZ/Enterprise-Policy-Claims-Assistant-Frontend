@@ -86,7 +86,7 @@ h1 { font-size: clamp(23px, 2.05vw, 34px); font-weight: 500; line-height: 1.25; 
 .suggestion-button:hover { background: #f2f6ef; border-color: #b6caba; }
 .composer { border: 1px solid #ccdacf; border-radius: 8px; padding: 13px; background: #fdfefd; }
 .composer:focus-within { border-color: #648d77; box-shadow: 0 0 0 2px #e9f0e9; }
-.composer textarea { width: 100%; background: transparent; border: 0; resize: vertical; min-height: 50px; max-height: 170px; font-size: 12px; line-height: 1.6; }
+.composer textarea { width: 100%; background: transparent; color: #203333; caret-color: #203333; border: 0; resize: vertical; min-height: 50px; max-height: 170px; font-size: 12px; line-height: 1.6; }
 .composer textarea:focus-visible { outline: none; }
 .composer textarea::placeholder { color: #8d9b91; }
 .composer span { font-size: 8px; color: #93a093; }

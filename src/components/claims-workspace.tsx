@@ -24,8 +24,6 @@ export function ClaimsWorkspace() {
     void chat.send({
       message: content,
       claim,
-      history: chat.messages.filter(message => message.id !== "welcome").map(({ role, content }) => ({ role, content })),
-      document_ids: documents.map(document => document.document_id),
     });
   }
 

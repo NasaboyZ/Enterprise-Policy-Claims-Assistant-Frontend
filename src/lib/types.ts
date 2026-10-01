@@ -34,14 +34,12 @@ export interface ChatMessage {
   status?: ChatStatus;
 }
 
-// HTTP contract for the pending FastAPI REST layer; see README.md.
+// UI models; api.ts maps them to the running FastAPI contract.
 export type ChatStatus = "answered" | "insufficient_context" | "manual_review";
 
 export interface ChatRequest {
   message: string;
   claim: ClaimInput;
-  history: Pick<ChatMessage, "role" | "content">[];
-  document_ids: string[];
 }
 
 export interface ChatResponse {

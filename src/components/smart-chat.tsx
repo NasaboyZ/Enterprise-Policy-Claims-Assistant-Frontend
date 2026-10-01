@@ -57,7 +57,7 @@ export function SmartChat({ messages, onSend, onSourceSelect, selectedSourceId, 
         <p className="eyebrow mb-3">BEISPIELFRAGEN</p>
         <div className="mb-4 flex flex-wrap gap-2">{suggestions.map((question) => <button type="button" key={question} className="suggestion-button" disabled={disabled} onClick={() => onSend(question)}>{question}<Icon name="arrow" size={13} /></button>)}</div>
         <form onSubmit={send} className="composer"><label htmlFor="chat-message" className="sr-only">Nachricht an den Schadenassistenten</label><textarea id="chat-message" rows={2} maxLength={4000} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={handleKeyDown} placeholder="Frage zum Schaden stellen …" /><div className="flex items-center justify-between gap-2"><span>Enter zum Senden · Shift + Enter für neue Zeile</span><button type="submit" className="send-button" aria-label="Nachricht senden" disabled={disabled || !draft.trim()}><Icon name="send" size={18} /></button></div></form>
-        <p className="helper mt-3 text-center">KI-Antworten anhand der Quellen prüfen. Keine automatische Leistungsentscheidung.</p>
+        <p className="helper mt-3 text-center">Jede Frage wird einzeln im gesamten Dokumentbestand gesucht. KI-Antworten anhand der Quellen prüfen.</p>
       </div>
     </section>
   );

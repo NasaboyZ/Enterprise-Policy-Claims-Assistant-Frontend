@@ -13,6 +13,21 @@ export class InvalidResponseError extends Error {
 
 export function apiErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
+    const code = record(error.detail) ? error.detail.error_code : undefined;
+    const messages: Record<string, string> = {
+      aion_quota_exceeded: "Das AionLabs-Kontingent ist aufgebraucht oder das Anfragelimit erreicht. Bitte nach Rücksetzung des Limits erneut versuchen.",
+      aion_key_missing: "Im Backend fehlt der AionLabs-API-Schlüssel. Bitte AION_API_KEY konfigurieren.",
+      aion_auth_failed: "AionLabs hat den API-Schlüssel des Backends abgelehnt. Bitte AION_API_KEY prüfen.",
+      aion_invalid_response: "AionLabs hat keine verwertbare Antwort geliefert. Bitte erneut versuchen.",
+      google_quota_exceeded: "Das Gemini-Kontingent ist aufgebraucht oder das Anfragelimit erreicht. Bitte später erneut versuchen.",
+      model_missing: "Das ML-Modell im Backend fehlt. Bitte zuerst trainieren.",
+      index_unavailable: "Der Dokumentenindex im Backend ist nicht verfügbar. Bitte den Index prüfen.",
+      encrypted_pdf: "Verschlüsselte PDFs werden nicht unterstützt. Bitte eine unverschlüsselte PDF auswählen.",
+      unreadable_pdf: "Die PDF enthält keinen lesbaren Text. Gescannte PDFs benötigen zuerst eine Texterkennung (OCR).",
+      invalid_pdf: "Die Datei ist keine lesbare PDF. Bitte eine gültige PDF auswählen.",
+      too_many_pages: "Die PDF darf höchstens 100 Seiten enthalten.",
+    };
+    if (typeof code === "string" && Object.hasOwn(messages, code)) return messages[code];
     if (error.status === 413) return "Die Datei ist für das Backend zu groß. Bitte eine kleinere PDF auswählen.";
     if (error.status === 415) return "Das Backend unterstützt diese Datei nicht. Bitte eine gültige PDF auswählen.";
     if (error.status === 422) return "Das Backend konnte die Angaben nicht verarbeiten. Bitte Eingaben und PDF prüfen.";
@@ -29,6 +44,27 @@ const record = (value: unknown): value is Record<string, unknown> => typeof valu
 const nonempty = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
 function parseChat(value: unknown): ChatResponse {
+  // Adapt the running FastAPI AgentResult to the presentation model.
+  if (record(value) && "final_answer" in value) {
+    if (!Array.isArray(value.sources) || !["answered", "insufficient_context", "manual_review"].includes(String(value.status))
+      || (value.ml_score !== null && (typeof value.ml_score !== "number" || !Number.isFinite(value.ml_score) || value.ml_score < 0 || value.ml_score > 1))) {
+      throw new InvalidResponseError();
+    }
+    value = {
+      answer: value.final_answer,
+      status: value.status,
+      sources: value.sources.map(source => {
+        if (!record(source)) throw new InvalidResponseError();
+        return { id: source.source_id, document_name: source.filename, page: source.page, text: source.text, section: "", quote: "" };
+      }),
+      ...(typeof value.ml_score === "number" ? { risk: {
+        // The backend status determines review; do not invent a second threshold.
+        level: value.status === "manual_review" ? "high" : "low",
+        score: Math.round(value.ml_score * 100),
+        explanation: "ML-Modellwert; keine automatische Leistungsentscheidung.",
+      } } : {}),
+    };
+  }
   if (!record(value) || !Array.isArray(value.sources)
     || (value.status !== undefined && !["answered", "insufficient_context", "manual_review"].includes(String(value.status)))
     || typeof value.answer !== "string"
@@ -48,7 +84,7 @@ function parseChat(value: unknown): ChatResponse {
 }
 
 export function createApiClient(
-  baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000",
+  baseUrl = "",
   fetcher: typeof fetch = fetch,
   timeoutMs = 90_000,
 ) {
@@ -78,7 +114,11 @@ export function createApiClient(
       return parseChat(await request("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ query: payload.message, claim: {
+          customer_age: payload.claim.customer_age,
+          claim_amount: payload.claim.claim_amount,
+          claim_type: payload.claim.claim_type,
+        } }),
         signal,
       }));
     },
@@ -86,8 +126,10 @@ export function createApiClient(
       const body = new FormData();
       body.append("file", file);
       const value = await request("/api/upload", { method: "POST", body, signal });
-      if (!record(value) || !nonempty(value.document_id) || !nonempty(value.filename)) throw new InvalidResponseError();
-      return { document_id: value.document_id, filename: value.filename };
+      if (!record(value) || !nonempty(value.filename)) throw new InvalidResponseError();
+      const id = value.sha256 ?? value.document_id;
+      if (!nonempty(id)) throw new InvalidResponseError();
+      return { document_id: id, filename: value.filename };
     },
     async metrics(signal?: AbortSignal) {
       return await request("/api/metrics", { signal }) as MetricsResponse;

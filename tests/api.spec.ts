@@ -8,11 +8,11 @@ test("API client uses JSON chat payloads and preserves FastAPI errors", async ()
     calls.push({ url: String(url), init });
     return Response.json({ answer: "Antwort", sources: [] });
   });
-  const payload = { message: "Deckung?", claim: initialClaim, history: [], document_ids: [] };
+  const payload = { message: "Deckung?", claim: initialClaim };
   await expect(client.chat(payload)).resolves.toEqual({ answer: "Antwort", sources: [] });
   expect(calls[0].url).toBe("http://backend.test/api/chat");
   expect(calls[0].init?.method).toBe("POST");
-  expect(JSON.parse(String(calls[0].init?.body))).toEqual(payload);
+  expect(JSON.parse(String(calls[0].init?.body))).toEqual({ query: payload.message, claim: { customer_age: 38, claim_amount: 2450, claim_type: "water" } });
   expect(new Headers(calls[0].init?.headers).get("Content-Type")).toBe("application/json");
 
   const failing = createApiClient("http://backend.test", async () => Response.json({ detail: "Invalid claim" }, { status: 422 }));
@@ -37,7 +37,7 @@ test("API client prepares multipart uploads and forwards abort signals", async (
 });
 
 test("rejects malformed successful responses and invalid risk scores", async () => {
-  const payload = { message: "Deckung?", claim: initialClaim, history: [], document_ids: [] };
+  const payload = { message: "Deckung?", claim: initialClaim };
   for (const body of [null, {}, { answer: "", sources: [] }, { answer: "OK", sources: [{}] }, { answer: "OK", sources: [], risk: { level: "low", score: 101, explanation: "invalid" } }, { answer: "OK", sources: [], status: "unknown" }]) {
     const client = createApiClient("http://backend.test", async () => Response.json(body));
     await expect(client.chat(payload)).rejects.toThrow("ungültige Antwort");
@@ -51,5 +51,5 @@ test("times out stalled requests", async () => {
   const client = createApiClient("http://backend.test", async (_url, init) => new Promise((_resolve, reject) => {
     init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
   }), 10);
-  await expect(client.chat({ message: "Deckung?", claim: initialClaim, history: [], document_ids: [] })).rejects.toMatchObject({ name: "TimeoutError" });
+  await expect(client.chat({ message: "Deckung?", claim: initialClaim })).rejects.toMatchObject({ name: "TimeoutError" });
 });

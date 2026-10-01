@@ -6,7 +6,7 @@ import { Icon } from "@/components/icon";
 import type { UploadResponse } from "@/lib/types";
 
 const api = createApiClient();
-const maxBytes = 20 * 1024 * 1024;
+const maxBytes = 10 * 1024 * 1024;
 
 export function DocumentUpload({ disabled, documents, onUploaded, onBusyChange }: {
   disabled: boolean;
@@ -32,7 +32,7 @@ export function DocumentUpload({ disabled, documents, onUploaded, onBusyChange }
       setError("Bitte eine PDF-Datei auswählen."); return;
     }
     if (!candidate.size || candidate.size > maxBytes) {
-      setError("Die PDF muss zwischen 1 Byte und 20 MB groß sein."); return;
+      setError("Die PDF muss zwischen 1 Byte und 10 MiB groß sein."); return;
     }
     setFile(candidate);
     const active = new AbortController();
@@ -70,7 +70,7 @@ export function DocumentUpload({ disabled, documents, onUploaded, onBusyChange }
         <input ref={input} type="file" accept=".pdf,application/pdf" className="sr-only" tabIndex={-1} aria-label="PDF auswählen" disabled={disabled || busy}
           onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ""; if (files.length) void upload(files); }} />
         <button type="button" className="suggestion-button" disabled={disabled || busy} onClick={() => input.current?.click()}>PDF auswählen</button>
-        <p className="helper">Eine PDF pro Upload · maximal 20 MB</p>
+        <p className="helper">Eine PDF pro Upload · maximal 10 MiB · 100 Seiten</p>
       </div>
       {busy && <p className="request-status" role="status"><span className="spinner" />PDF wird hochgeladen und indexiert …</p>}
       {error && <div className="request-error" role="alert"><p>{error}</p>{file && <button type="button" className="suggestion-button mt-3" disabled={disabled || busy} onClick={() => void upload([file])}>Upload erneut versuchen</button>}</div>}

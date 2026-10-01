@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { apiErrorMessage, createApiClient } from "@/lib/api";
 import { welcomeMessage } from "@/lib/initial-state";
 import type { ChatMessage, ChatRequest, RiskAssessment } from "@/lib/types";
@@ -8,6 +8,8 @@ import type { ChatMessage, ChatRequest, RiskAssessment } from "@/lib/types";
 const api = createApiClient();
 
 export function useClaimsChat() {
+  const sessionId = useId();
+  const sequence = useRef(0);
   const [messages, setMessages] = useState<ChatMessage[]>([welcomeMessage]);
   const [risk, setRisk] = useState<RiskAssessment | null>(null);
   const [pending, setPending] = useState(false);
@@ -25,7 +27,10 @@ export function useClaimsChat() {
     setPending(true);
     setError(null);
     setRisk(null);
-    if (!retry) setMessages(previous => [...previous, { id: crypto.randomUUID(), role: "user", content: payload.message, sources: [] }]);
+    if (!retry) {
+      const id = `${sessionId}-${++sequence.current}`;
+      setMessages(previous => [...previous, { id, role: "user", content: payload.message, sources: [] }]);
+    }
     try {
       const response = await api.chat(payload, active.signal);
       if (active.signal.aborted) return;
@@ -35,7 +40,8 @@ export function useClaimsChat() {
         : status === "manual_review"
           ? "Manuelle Prüfung erforderlich. Es wurde keine Leistungsentscheidung getroffen. Bitte geben Sie den Schaden zur Prüfung an die Sachbearbeitung weiter."
           : response.answer;
-      setMessages(previous => [...previous, { id: crypto.randomUUID(), role: "assistant", content, status, sources: status === "answered" ? response.sources : [] }]);
+      const id = `${sessionId}-${++sequence.current}`;
+      setMessages(previous => [...previous, { id, role: "assistant", content, status, sources: status === "answered" ? response.sources : [] }]);
       setRisk(response.risk ?? null);
       request.current = null;
     } catch (error) {
